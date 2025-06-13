@@ -1,0 +1,25 @@
+import React from 'react';
+import { CartProvider } from './contexts/CartContext';
+import Header from './components/Header';
+import Hero from './components/Hero';
+import ProductGrid from './components/ProductGrid';
+import About from './components/About';
+import Footer from './components/Footer';
+
+function App() {
+  return (
+    <CartProvider>
+      <div className="min-h-screen bg-white">
+        <Header />
+        <main>
+          <Hero />
+          <ProductGrid />
+          <About />
+        </main>
+        <Footer />
+      </div>
+    </CartProvider>
+  );
+}
+
+export default App;
