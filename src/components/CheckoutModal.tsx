@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { X, CreditCard, Lock, User, Mail, MapPin, Phone } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { stripePromise } from '../lib/stripe';
+import { supabase } from '../lib/supabase';
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAuthRequired?: () => void;
 }
 
 interface CustomerInfo {
@@ -60,10 +61,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    // Validate phone number (basic validation)
+    // Validate phone number (Indian mobile number)
     const phoneRegex = /^[6-9]\d{9}$/;
     if (!phoneRegex.test(customerInfo.phone)) {
-      setError('Please enter a valid 10-digit mobile number');
+      setError('Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9');
+      return;
+    }
+
+    // Validate pincode (Indian pincode)
+    const pincodeRegex = /^\d{6}$/;
+    if (!pincodeRegex.test(customerInfo.pincode)) {
+      setError('Please enter a valid 6-digit PIN code');
       return;
     }
 
@@ -75,23 +83,75 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
     setError('');
 
     try {
+      // Check if Stripe is configured
+      const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+      if (!stripePublishableKey || stripePublishableKey === 'pk_test_placeholder') {
+        throw new Error('Payment system is not configured. Please contact support.');
+      }
+
       // Generate invoice number
       const invoice = generateInvoiceNumber();
+
+      // Create order in database first (with pending status)
+      const orderData = {
+        invoice_number: invoice,
+        customer_name: customerInfo.name,
+        customer_email: customerInfo.email,
+        customer_phone: customerInfo.phone,
+        delivery_address: `${customerInfo.address}, ${customerInfo.city}, ${customerInfo.state} - ${customerInfo.pincode}`,
+        total_amount: getTotalPrice() * 83, // Convert to INR
+        status: 'pending',
+        order_items: items.map(item => ({
+          product_name: item.product.name,
+          product_id: item.product.id,
+          price_per_kg: item.product.pricePerKg * 83,
+          package_size: item.packageSize,
+          quantity: item.quantity,
+          subtotal: item.product.pricePerKg * item.packageSize * item.quantity * 83
+        }))
+      };
+
+      // Create checkout session via Supabase Edge Function
+      const { data, error: functionError } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
+          orderData,
+          items: items.map(item => ({
+            product_id: item.product.id,
+            name: item.product.name,
+            price: item.product.pricePerKg * item.packageSize * 83, // INR price
+            quantity: item.quantity,
+            package_size: item.packageSize,
+          })),
+          customer_info: customerInfo,
+        },
+      });
+
+      if (functionError) {
+        throw new Error(functionError.message);
+      }
+
+      // Redirect to Stripe Checkout
+      const stripe = await stripePromise;
+      if (!stripe) {
+        throw new Error('Stripe failed to load');
+      }
+
+      const { error: stripeError } = await stripe.redirectToCheckout({
+        sessionId: data.sessionId,
+      });
+
+      if (stripeError) {
+        throw new Error(stripeError.message);
+      }
+
+      // If we reach here, payment was successful
       setInvoiceNumber(invoice);
-
-      // Simulate payment processing (replace with actual Stripe integration)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Here you would:
-      // 1. Create order in database with invoice number
-      // 2. Process payment with Stripe
-      // 3. Send confirmation email with invoice number
-      // 4. Clear cart
-
       clearCart();
       setStep('success');
+
     } catch (err) {
-      setError('Payment failed. Please try again.');
+      console.error('Payment error:', err);
+      setError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -128,7 +188,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
                 {step === 'details' && 'Delivery Details'}
-                {step === 'payment' && 'Payment'}
+                {step === 'payment' && 'Secure Payment'}
                 {step === 'success' && 'Order Confirmed!'}
               </h2>
               {step !== 'success' && (
@@ -184,9 +244,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                       onChange={(e) => handleInputChange('phone', e.target.value)}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       placeholder="10-digit mobile number"
+                      maxLength={10}
                       required
                     />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Required for order tracking and delivery updates</p>
                 </div>
               </div>
 
@@ -205,11 +267,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                     required
                   />
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Order confirmation and invoice will be sent here</p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Delivery Address *
+                  Complete Delivery Address *
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -217,7 +280,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                     value={customerInfo.address}
                     onChange={(e) => handleInputChange('address', e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Enter complete delivery address"
+                    placeholder="House/Flat number, Street name, Landmark"
                     rows={3}
                     required
                   />
@@ -254,6 +317,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                     <option value="Haryana">Haryana</option>
                     <option value="Delhi">Delhi</option>
                     <option value="Uttarakhand">Uttarakhand</option>
+                    <option value="Chandigarh">Chandigarh</option>
                   </select>
                 </div>
 
@@ -266,7 +330,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                     value={customerInfo.pincode}
                     onChange={(e) => handleInputChange('pincode', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="PIN Code"
+                    placeholder="6-digit PIN"
+                    maxLength={6}
                     required
                   />
                 </div>
@@ -313,7 +378,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                 <h3 className="font-semibold text-gray-900 mb-3">Delivery Details</h3>
                 <div className="text-sm space-y-1">
                   <p><strong>Name:</strong> {customerInfo.name}</p>
-                  <p><strong>Phone:</strong> {customerInfo.phone}</p>
+                  <p><strong>Phone:</strong> +91 {customerInfo.phone}</p>
                   <p><strong>Email:</strong> {customerInfo.email}</p>
                   <p><strong>Address:</strong> {customerInfo.address}, {customerInfo.city}, {customerInfo.state} - {customerInfo.pincode}</p>
                 </div>
@@ -349,23 +414,31 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
 
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-2">Secure Payment</h4>
+                <p className="text-sm text-blue-700">
+                  You will be redirected to Stripe's secure payment page. Your payment information is encrypted and secure.
+                  After successful payment, you'll receive an email confirmation with your invoice number.
+                </p>
+              </div>
+
               <button
                 onClick={handlePayment}
                 disabled={loading}
                 className="w-full bg-green-700 text-white py-4 rounded-lg font-semibold hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 <CreditCard className="h-5 w-5" />
-                <span>{loading ? 'Processing Payment...' : 'Pay Now'}</span>
+                <span>{loading ? 'Redirecting to Payment...' : 'Pay Securely with Stripe'}</span>
                 <Lock className="h-4 w-4" />
               </button>
 
               <p className="text-xs text-gray-500 text-center">
-                Secure payment powered by Stripe. Your payment information is encrypted and secure.
+                By proceeding, you agree to our terms of service. Payment will only be processed after successful verification.
               </p>
             </div>
           )}
 
-          {/* Step 3: Success */}
+          {/* Step 3: Success (This will rarely be shown as user gets redirected to Stripe) */}
           {step === 'success' && (
             <div className="text-center space-y-6">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -375,43 +448,36 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
               </div>
 
               <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Order Confirmed!</h3>
-                <p className="text-gray-600">Thank you for your order. We'll start preparing your fresh fruits right away.</p>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
+                <p className="text-gray-600">Your order has been confirmed and we'll start preparing your fresh fruits.</p>
               </div>
 
               <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                 <h4 className="text-lg font-semibold text-green-800 mb-2">Your Invoice Number</h4>
                 <div className="text-3xl font-bold text-green-700 mb-4">{invoiceNumber}</div>
                 <p className="text-sm text-green-700">
-                  Save this invoice number to track your order status. We'll also send it to your email.
+                  Save this invoice number along with your mobile number to track your order. 
+                  Confirmation email has been sent to {customerInfo.email}.
                 </p>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-semibold text-blue-800 mb-2">What's Next?</h4>
                 <ul className="text-sm text-blue-700 space-y-1 text-left">
-                  <li>• You'll receive an email confirmation shortly</li>
-                  <li>• Our team will prepare your order within 24 hours</li>
-                  <li>• Our delivery partner will contact you for delivery</li>
-                  <li>• Use your invoice number to track order status</li>
+                  <li>• Email confirmation sent to {customerInfo.email}</li>
+                  <li>• SMS updates will be sent to +91 {customerInfo.phone}</li>
+                  <li>• Order will be processed within 24 hours</li>
+                  <li>• Track your order using invoice number + mobile number</li>
+                  <li>• Delivery partner will contact you before delivery</li>
                 </ul>
               </div>
 
-              <div className="space-y-3">
-                <button
-                  onClick={resetModal}
-                  className="w-full bg-green-700 text-white py-3 rounded-lg font-semibold hover:bg-green-800 transition-colors"
-                >
-                  Continue Shopping
-                </button>
-                
-                <button
-                  onClick={() => window.print()}
-                  className="w-full border-2 border-green-700 text-green-700 py-3 rounded-lg font-semibold hover:bg-green-700 hover:text-white transition-colors"
-                >
-                  Print Invoice Details
-                </button>
-              </div>
+              <button
+                onClick={resetModal}
+                className="w-full bg-green-700 text-white py-3 rounded-lg font-semibold hover:bg-green-800 transition-colors"
+              >
+                Continue Shopping
+              </button>
             </div>
           )}
         </div>

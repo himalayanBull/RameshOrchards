@@ -36,21 +36,63 @@ serve(async (request) => {
   if (receivedEvent.type === 'checkout.session.completed') {
     const session = receivedEvent.data.object as Stripe.Checkout.Session
     
-    // Update order status to processing
+    try {
+      // Update order status to processing
+      const { error: updateError } = await supabaseClient
+        .from('orders')
+        .update({ 
+          status: 'processing',
+          updated_at: new Date().toISOString()
+        })
+        .eq('stripe_session_id', session.id)
+
+      if (updateError) {
+        console.error('Error updating order:', updateError)
+        return new Response('Error updating order', { status: 500 })
+      }
+
+      // Send confirmation email (you can implement this using a service like Resend)
+      const invoiceNumber = session.metadata?.invoice_number
+      const customerEmail = session.customer_email
+      
+      if (invoiceNumber && customerEmail) {
+        // TODO: Implement email sending
+        console.log(`📧 Should send confirmation email to ${customerEmail} for invoice ${invoiceNumber}`)
+        
+        // You can integrate with email services like:
+        // - Resend
+        // - SendGrid
+        // - Amazon SES
+        // - Mailgun
+        
+        // Example with Resend:
+        // await sendConfirmationEmail(customerEmail, invoiceNumber, orderDetails)
+      }
+
+      console.log(`✅  Order updated for session: ${session.id}`)
+    } catch (error) {
+      console.error('Error processing webhook:', error)
+      return new Response('Error processing webhook', { status: 500 })
+    }
+  }
+
+  if (receivedEvent.type === 'checkout.session.expired') {
+    const session = receivedEvent.data.object as Stripe.Checkout.Session
+    
+    // Update order status to cancelled if payment session expired
     const { error } = await supabaseClient
       .from('orders')
       .update({ 
-        status: 'processing',
+        status: 'cancelled',
         updated_at: new Date().toISOString()
       })
       .eq('stripe_session_id', session.id)
 
     if (error) {
-      console.error('Error updating order:', error)
-      return new Response('Error updating order', { status: 500 })
+      console.error('Error cancelling expired order:', error)
+    } else {
+      console.log(`❌  Order cancelled for expired session: ${session.id}`)
     }
-
-    console.log(`✅  Order updated for session: ${session.id}`)
   }
 
   return new Response(JSON.stringify({ received: true }), {
