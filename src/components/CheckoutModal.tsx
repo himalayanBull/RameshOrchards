@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { X, CreditCard, Lock } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
-import { stripePromise } from '../lib/stripe';
-import { supabase } from '../lib/supabase';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -12,7 +10,7 @@ interface CheckoutModalProps {
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onAuthRequired }) => {
-  const { items, getTotalPrice, clearCart } = useCart();
+  const { items, getTotalPrice } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -25,41 +23,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onAuthRe
       return;
     }
 
+    // Check if Stripe is properly configured
+    const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    
+    if (!stripeKey || stripeKey === 'pk_test_placeholder' || !supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+      setError('Payment system is not configured yet. Please set up Stripe and Supabase first.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      // Create checkout session via Supabase Edge Function
-      const { data, error: functionError } = await supabase.functions.invoke('create-checkout-session', {
-        body: {
-          items: items.map(item => ({
-            product_id: item.product.id,
-            name: item.product.name,
-            price: item.product.pricePerKg * item.packageSize,
-            quantity: item.quantity,
-            package_size: item.packageSize,
-          })),
-          customer_email: user.email,
-        },
-      });
-
-      if (functionError) {
-        throw new Error(functionError.message);
-      }
-
-      // Redirect to Stripe Checkout
-      const stripe = await stripePromise;
-      if (!stripe) {
-        throw new Error('Stripe failed to load');
-      }
-
-      const { error: stripeError } = await stripe.redirectToCheckout({
-        sessionId: data.sessionId,
-      });
-
-      if (stripeError) {
-        throw new Error(stripeError.message);
-      }
+      // This will be implemented once Supabase is properly connected
+      setError('Checkout will be available once Supabase and Stripe are configured.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during checkout');
     } finally {
@@ -122,6 +100,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onAuthRe
             </div>
           )}
 
+          {/* Setup Notice */}
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg mb-4">
+            <p className="text-sm">
+              <strong>Setup Required:</strong> Connect to Supabase and configure Stripe to enable payments.
+            </p>
+          </div>
+
           {/* Checkout Button */}
           <button
             onClick={handleCheckout}
@@ -129,12 +114,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onAuthRe
             className="w-full bg-green-700 text-white py-4 rounded-lg font-semibold hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
           >
             <CreditCard className="h-5 w-5" />
-            <span>{loading ? 'Processing...' : 'Pay with Stripe'}</span>
+            <span>{loading ? 'Processing...' : 'Setup Payment System'}</span>
             <Lock className="h-4 w-4" />
           </button>
 
           <p className="text-xs text-gray-500 text-center mt-3">
-            Secure payment powered by Stripe. Your payment information is encrypted and secure.
+            Secure payment will be powered by Stripe once configured.
           </p>
         </div>
       </div>

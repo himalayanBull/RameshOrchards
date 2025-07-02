@@ -31,10 +31,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    
+    if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
 
@@ -51,6 +61,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const signUp = async (email: string, password: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    
+    if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+      return { error: { message: 'Supabase is not configured. Please connect to Supabase first.' } };
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -59,6 +75,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signIn = async (email: string, password: string) => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    
+    if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co') {
+      return { error: { message: 'Supabase is not configured. Please connect to Supabase first.' } };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
