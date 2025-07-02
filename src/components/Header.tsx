@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Menu, X, Apple } from 'lucide-react';
+import { ShoppingCart, Menu, X, Apple, User, LogOut } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import Cart from './Cart';
+import AuthModal from './AuthModal';
 
 const Header: React.FC = () => {
   const { getTotalItems } = useCart();
+  const { user, signOut } = useAuth();
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     element?.scrollIntoView({ behavior: 'smooth' });
     setIsMobileMenuOpen(false);
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
   };
 
   return (
@@ -55,8 +63,35 @@ const Header: React.FC = () => {
               </button>
             </nav>
 
-            {/* Cart and Mobile Menu */}
+            {/* User Actions */}
             <div className="flex items-center space-x-4">
+              {/* User Menu */}
+              {user ? (
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 text-gray-700">
+                    <User className="h-5 w-5" />
+                    <span className="text-sm font-medium hidden sm:block">
+                      {user.email?.split('@')[0]}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    className="p-2 text-gray-700 hover:text-red-600 transition-colors"
+                    title="Sign Out"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="text-gray-700 hover:text-green-700 transition-colors font-medium"
+                >
+                  Sign In
+                </button>
+              )}
+
+              {/* Cart */}
               <button
                 onClick={() => setIsCartOpen(true)}
                 className="relative p-2 text-gray-700 hover:text-green-700 transition-colors"
@@ -69,6 +104,7 @@ const Header: React.FC = () => {
                 )}
               </button>
 
+              {/* Mobile Menu */}
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="md:hidden p-2 text-gray-700 hover:text-green-700 transition-colors"
@@ -106,6 +142,17 @@ const Header: React.FC = () => {
                 >
                   Contact
                 </button>
+                {!user && (
+                  <button
+                    onClick={() => {
+                      setIsAuthOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="px-4 py-2 text-left text-gray-700 hover:text-green-700 transition-colors"
+                  >
+                    Sign In
+                  </button>
+                )}
               </nav>
             </div>
           )}
@@ -113,6 +160,7 @@ const Header: React.FC = () => {
       </header>
 
       <Cart isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </>
   );
 };
