@@ -13,7 +13,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const [quantity, setQuantity] = useState(1);
 
   const packageOptions = [5, 10, 20];
-  const totalPrice = product.pricePerKg * selectedPackage * quantity;
+  const totalPrice = product.pricePerKg * selectedPackage * quantity * 83; // Convert to INR
 
   const handleAddToCart = () => {
     for (let i = 0; i < quantity; i++) {
@@ -45,7 +45,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         <div className="flex items-center justify-between">
           <div className="text-2xl font-bold text-green-700">
-            ${product.pricePerKg}<span className="text-base text-gray-500">/kg</span>
+            ₹{(product.pricePerKg * 83).toFixed(0)}<span className="text-base text-gray-500">/kg</span>
           </div>
           <div className="text-sm text-gray-500">
             {product.inStock ? 'In Stock' : 'Out of Stock'}
@@ -67,7 +67,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                 }`}
               >
                 <div className="text-sm font-medium">{size}kg</div>
-                <div className="text-xs text-gray-500">${(product.pricePerKg * size).toFixed(2)}</div>
+                <div className="text-xs text-gray-500">₹{(product.pricePerKg * size * 83).toFixed(0)}</div>
               </button>
             ))}
           </div>
@@ -96,7 +96,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         <div className="border-t pt-4">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-gray-600">Total:</span>
-            <span className="text-xl font-bold text-gray-900">${totalPrice.toFixed(2)}</span>
+            <span className="text-xl font-bold text-gray-900">₹{totalPrice.toFixed(0)}</span>
           </div>
           
           <button

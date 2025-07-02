@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import CheckoutModal from './CheckoutModal';
-import AuthModal from './AuthModal';
 
 interface CartProps {
   isOpen: boolean;
@@ -12,17 +11,11 @@ interface CartProps {
 const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
   const { items, updateQuantity, removeFromCart, getTotalPrice, clearCart } = useCart();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   if (!isOpen) return null;
 
   const handleCheckout = () => {
     setIsCheckoutOpen(true);
-  };
-
-  const handleAuthRequired = () => {
-    setIsCheckoutOpen(false);
-    setIsAuthOpen(true);
   };
 
   return (
@@ -66,7 +59,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                           <h3 className="text-sm font-medium text-gray-900">{item.product.name}</h3>
                           <p className="text-sm text-gray-500">Package: {item.packageSize}kg</p>
                           <p className="text-sm font-medium text-green-700 mt-1">
-                            ${(item.product.pricePerKg * item.packageSize).toFixed(2)} each
+                            ₹{(item.product.pricePerKg * item.packageSize * 83).toFixed(0)} each
                           </p>
                           
                           <div className="flex items-center justify-between mt-3">
@@ -102,7 +95,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Subtotal:</span>
                           <span className="text-sm font-bold text-gray-900">
-                            ${(item.product.pricePerKg * item.packageSize * item.quantity).toFixed(2)}
+                            ₹{(item.product.pricePerKg * item.packageSize * item.quantity * 83).toFixed(0)}
                           </span>
                         </div>
                       </div>
@@ -124,7 +117,7 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
               <div className="border-t p-6 space-y-4">
                 <div className="flex justify-between items-center text-lg font-bold">
                   <span>Total:</span>
-                  <span className="text-green-700">${getTotalPrice().toFixed(2)}</span>
+                  <span className="text-green-700">₹{(getTotalPrice() * 83).toFixed(0)}</span>
                 </div>
                 
                 <button 
@@ -149,12 +142,6 @@ const Cart: React.FC<CartProps> = ({ isOpen, onClose }) => {
       <CheckoutModal 
         isOpen={isCheckoutOpen} 
         onClose={() => setIsCheckoutOpen(false)}
-        onAuthRequired={handleAuthRequired}
-      />
-      
-      <AuthModal 
-        isOpen={isAuthOpen} 
-        onClose={() => setIsAuthOpen(false)} 
       />
     </>
   );
