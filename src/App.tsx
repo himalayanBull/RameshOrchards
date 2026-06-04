@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { HelmetProvider } from 'react-helmet-async';
 import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -20,11 +19,10 @@ import ScrollToTop from './components/common/ScrollToTop';
 
 function App() {
   return (
-    <HelmetProvider>
-      <ToastProvider>
-        <CartProvider>
-          <WishlistProvider>
-            <BrowserRouter>
+    <ToastProvider>
+      <CartProvider>
+        <WishlistProvider>
+          <BrowserRouter>
             <ScrollToTop />
             <Routes>
               <Route element={<Layout />}>
@@ -41,11 +39,10 @@ function App() {
                 <Route path="/wishlist" element={<WishlistPage />} />
               </Route>
             </Routes>
-            </BrowserRouter>
-          </WishlistProvider>
-        </CartProvider>
-      </ToastProvider>
-    </HelmetProvider>
+          </BrowserRouter>
+        </WishlistProvider>
+      </CartProvider>
+    </ToastProvider>
   );
 }
 
